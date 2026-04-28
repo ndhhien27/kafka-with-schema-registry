@@ -1,0 +1,31 @@
+{
+  "type": "record",
+  "name": "OrderPlaced",
+  "namespace": "com.example.events",
+  "doc": "Emitted when an order is placed.",
+  "fields": [
+    { "name": "eventId", "type": "string" },
+    {
+      "name": "occurredAt",
+      "type": { "type": "long", "logicalType": "timestamp-millis" }
+    },
+    { "name": "orderId", "type": "string" },
+    { "name": "userId", "type": "string" },
+    { "name": "amountCents", "type": "long", "doc": "Minor units (e.g. cents). Avoid float for money." },
+    { "name": "currency", "type": "string", "default": "USD" },
+    {
+      "name": "items",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "OrderItem",
+          "fields": [
+            { "name": "sku", "type": "string" },
+            { "name": "quantity", "type": "int" }
+          ]
+        }
+      }
+    }
+  ]
+}

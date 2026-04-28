@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "UserCreated",
+  "namespace": "com.example.events",
+  "doc": "Emitted when a new user is created.",
+  "fields": [
+    { "name": "eventId", "type": "string", "doc": "UUID of this event." },
+    {
+      "name": "occurredAt",
+      "type": { "type": "long", "logicalType": "timestamp-millis" }
+    },
+    { "name": "userId", "type": "string" },
+    { "name": "email", "type": "string" },
+    { "name": "displayName", "type": ["null", "string"], "default": null }
+  ]
+}

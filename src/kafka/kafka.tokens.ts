@@ -1,0 +1,2 @@
+export const KAFKA_CLIENT = Symbol('KAFKA_CLIENT');
+export const KAFKA_SUBSCRIBE_METADATA = Symbol('KAFKA_SUBSCRIBE_METADATA');
