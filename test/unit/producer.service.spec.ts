@@ -30,13 +30,13 @@ describe('ProducerService', () => {
     expect(connect).toHaveBeenCalledTimes(1);
   });
 
-  it('encodes via Schema Registry by default', async () => {
+  it('encodes via Schema Registry by default, passing topic through', async () => {
     await service.produce({
       topic: 'user.created',
       key: 'u1',
       value: { userId: 'u1', email: 'a@b.c' },
     });
-    expect(encode).toHaveBeenCalledWith('user.created-value', {
+    expect(encode).toHaveBeenCalledWith('user.created', {
       userId: 'u1',
       email: 'a@b.c',
     });
@@ -45,15 +45,6 @@ describe('ProducerService', () => {
     expect(call[0].topic).toBe('user.created');
     expect(call[0].messages[0].key).toBe('u1');
     expect(call[0].messages[0].value).toEqual(Buffer.from('encoded'));
-  });
-
-  it('respects an explicit subject override', async () => {
-    await service.produce({
-      topic: 'user.created',
-      subject: 'custom-subject-v2',
-      value: {},
-    });
-    expect(encode).toHaveBeenCalledWith('custom-subject-v2', {});
   });
 
   it('skips Schema Registry encoding when raw=true', async () => {

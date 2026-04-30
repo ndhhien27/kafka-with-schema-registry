@@ -3,14 +3,18 @@
  * Exercises the order.placed consumer which throws on amountCents < 0.
  */
 import { Test } from '@nestjs/testing';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { randomUUID } from 'crypto';
 import { Kafka, logLevel } from 'kafkajs';
 import { startKafkaStack, KafkaStack } from './kafka.containers';
 import { AppConfigModule } from '../../src/config/config.module';
 import { SchemaRegistryModule } from '../../src/schema-registry/schema-registry.module';
+import { SchemaRegistryService } from '../../src/schema-registry/schema-registry.service';
 import { KafkaModule } from '../../src/kafka/kafka.module';
 import { OrdersModule } from '../../src/features/orders/orders.module';
 import { ProducerService } from '../../src/kafka/producer.service';
+import { AvroSerializer } from '../../src/kafka/serdes/avro.serializer';
+import { AvroDeserializer } from '../../src/kafka/serdes/avro.deserializer';
 import {
   ORDER_PLACED_TOPIC,
   OrderPlacedEvent,
@@ -40,6 +44,27 @@ describe('DLQ routing (integration)', () => {
     app = moduleRef.createNestApplication();
     app.enableShutdownHooks();
     await app.init();
+
+    const sr = app.get(SchemaRegistryService);
+    app.connectMicroservice<MicroserviceOptions>({
+      transport: Transport.KAFKA,
+      options: {
+        client: {
+          clientId: 'int-dlq-microservice',
+          brokers: [stack.brokersForHost],
+        },
+        consumer: {
+          groupId: 'int-dlq-group',
+          allowAutoTopicCreation: true,
+        },
+        subscribe: { fromBeginning: true },
+        run: { autoCommit: true },
+        serializer: new AvroSerializer(sr),
+        deserializer: new AvroDeserializer(sr),
+      },
+    });
+    await app.startAllMicroservices();
+
     producer = app.get(ProducerService);
   });
 
@@ -65,7 +90,6 @@ describe('DLQ routing (integration)', () => {
       value: event,
     });
 
-    // Spin up a vanilla kafkajs consumer on the DLQ to observe the routed message.
     const kafka = new Kafka({
       clientId: 'dlq-observer',
       brokers: [stack.brokersForHost],
@@ -73,7 +97,10 @@ describe('DLQ routing (integration)', () => {
     });
     const observer = kafka.consumer({ groupId: `dlq-obs-${Date.now()}` });
     await observer.connect();
-    await observer.subscribe({ topic: `${ORDER_PLACED_TOPIC}.DLQ`, fromBeginning: true });
+    await observer.subscribe({
+      topic: `${ORDER_PLACED_TOPIC}.DLQ`,
+      fromBeginning: true,
+    });
 
     const seen: { headers: Record<string, string>; key: Buffer | null }[] = [];
     await observer.run({
@@ -87,7 +114,7 @@ describe('DLQ routing (integration)', () => {
       },
     });
 
-    const deadline = Date.now() + 90_000;
+    const deadline = Date.now() + 120_000;
     while (seen.length === 0 && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 500));
     }

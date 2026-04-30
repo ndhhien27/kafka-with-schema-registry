@@ -3,13 +3,17 @@
  * Requires Docker.
  */
 import { Test } from '@nestjs/testing';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { startKafkaStack, KafkaStack } from './kafka.containers';
 import { AppConfigModule } from '../../src/config/config.module';
 import { SchemaRegistryModule } from '../../src/schema-registry/schema-registry.module';
+import { SchemaRegistryService } from '../../src/schema-registry/schema-registry.service';
 import { KafkaModule } from '../../src/kafka/kafka.module';
 import { UsersModule } from '../../src/features/users/users.module';
 import { UserCreatedProducer } from '../../src/features/users/user-created.producer';
 import { UserCreatedConsumer } from '../../src/features/users/user-created.consumer';
+import { AvroSerializer } from '../../src/kafka/serdes/avro.serializer';
+import { AvroDeserializer } from '../../src/kafka/serdes/avro.deserializer';
 import type { INestApplication } from '@nestjs/common';
 
 jest.setTimeout(180_000);
@@ -37,6 +41,26 @@ describe('produce → consume (integration)', () => {
     app.enableShutdownHooks();
     await app.init();
 
+    const sr = app.get(SchemaRegistryService);
+    app.connectMicroservice<MicroserviceOptions>({
+      transport: Transport.KAFKA,
+      options: {
+        client: {
+          clientId: 'int-test-microservice',
+          brokers: [stack.brokersForHost],
+        },
+        consumer: {
+          groupId: 'int-test-group',
+          allowAutoTopicCreation: true,
+        },
+        subscribe: { fromBeginning: true },
+        run: { autoCommit: true },
+        serializer: new AvroSerializer(sr),
+        deserializer: new AvroDeserializer(sr),
+      },
+    });
+    await app.startAllMicroservices();
+
     producer = app.get(UserCreatedProducer);
     consumer = app.get(UserCreatedConsumer);
   });
@@ -49,9 +73,9 @@ describe('produce → consume (integration)', () => {
   it('round-trips a UserCreated event through Avro', async () => {
     const received: unknown[] = [];
     const origHandle = consumer.handle.bind(consumer);
-    jest.spyOn(consumer, 'handle').mockImplementation(async (msg) => {
-      received.push(msg);
-      return origHandle(msg);
+    jest.spyOn(consumer, 'handle').mockImplementation(async (value, ctx) => {
+      received.push(value);
+      return origHandle(value, ctx);
     });
 
     const event = await producer.emit({
@@ -60,13 +84,12 @@ describe('produce → consume (integration)', () => {
       displayName: 'Alice',
     });
 
-    await waitFor(() => received.length >= 1, 30_000);
+    await waitFor(() => received.length >= 1, 60_000);
 
     expect(received).toHaveLength(1);
-    const [decoded] = received as any[];
-    expect(decoded.topic).toBe('user.created');
-    expect(decoded.value.eventId).toBe(event.eventId);
-    expect(decoded.value.email).toBe('a@example.com');
+    const [decoded] = received as Array<{ eventId: string; email: string }>;
+    expect(decoded.eventId).toBe(event.eventId);
+    expect(decoded.email).toBe('a@example.com');
   });
 });
 

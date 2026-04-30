@@ -5,16 +5,12 @@
 import 'reflect-metadata';
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import {
-  SchemaRegistry,
-  SchemaType,
-  readAVSCAsync,
-} from '@kafkajs/confluent-schema-registry';
+import { SchemaRegistryClient, SchemaInfo } from '@confluentinc/schemaregistry';
 
 async function main(): Promise<void> {
   const srUrl = process.env.SCHEMA_REGISTRY_URL ?? 'http://localhost:8081';
   const schemasDir = join(process.cwd(), 'schemas');
-  const client = new SchemaRegistry({ host: srUrl });
+  const client = new SchemaRegistryClient({ baseURLs: [srUrl] });
 
   const files = (await fs.readdir(schemasDir)).filter((f) => f.endsWith('.avsc'));
   if (files.length === 0) {
@@ -24,13 +20,11 @@ async function main(): Promise<void> {
 
   for (const file of files) {
     const path = join(schemasDir, file);
-    const schema = await readAVSCAsync(path);
+    const schema = await fs.readFile(path, 'utf8');
     const topic = file.replace(/\.avsc$/, '').replace(/-/g, '.');
     const subject = `${topic}-value`;
-    const { id } = await client.register(
-      { type: SchemaType.AVRO, schema: JSON.stringify(schema) },
-      { subject },
-    );
+    const schemaInfo: SchemaInfo = { schemaType: 'AVRO', schema };
+    const id = await client.register(subject, schemaInfo, false);
     console.log(`✓ ${file} -> subject=${subject} id=${id}`);
   }
 }

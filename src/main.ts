@@ -3,34 +3,13 @@ import './observability/tracing';
 
 import { NestFactory } from '@nestjs/core';
 import { Logger as NestLogger, ValidationPipe } from '@nestjs/common';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { AppConfigService } from './config/app-config.service';
-
-// Silence noisy upstream warnings that are out of our control:
-//   - TimeoutNegativeWarning: kafkajs retry deadline math during cluster discovery
-//   - DEP0190: ts-node/pnpm child_process shell-arg deprecation
-// Everything else still surfaces.
-// const SUPPRESSED_WARNINGS = new Set(['TimeoutNegativeWarning', 'DeprecationWarning']);
-// process.on('warning', (warning: NodeJS.ErrnoException) => {
-//   if (SUPPRESSED_WARNINGS.has(warning.name) && warning.code === 'DEP0190') return;
-//   if (warning.name === 'TimeoutNegativeWarning') return;
-//   // eslint-disable-next-line no-console
-//   console.warn(warning);
-// });
-
-// const bootstrapLogger = new NestLogger('Bootstrap');
-
-// // Guard against kafkajs protocol errors (e.g. transient UNKNOWN_TOPIC_OR_PARTITION
-// // during metadata refresh) and other stray rejections taking the process down.
-// process.on('unhandledRejection', (reason) => {
-//   const err = reason instanceof Error ? reason : new Error(String(reason));
-//   bootstrapLogger.error(`Unhandled rejection: ${err.message}`, err.stack);
-// });
-
-// process.on('uncaughtException', (err) => {
-//   bootstrapLogger.error(`Uncaught exception: ${err.message}`, err.stack);
-// });
+import { SchemaRegistryService } from './schema-registry/schema-registry.service';
+import { AvroSerializer } from './kafka/serdes/avro.serializer';
+import { AvroDeserializer } from './kafka/serdes/avro.deserializer';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -39,6 +18,42 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   const cfg = app.get(AppConfigService);
+  const sr = app.get(SchemaRegistryService);
+
+  const k = cfg.kafka;
+  const sasl =
+    k.saslMechanism && k.saslUsername && k.saslPassword
+      ? {
+          mechanism: k.saslMechanism,
+          username: k.saslUsername,
+          password: k.saslPassword,
+        }
+      : undefined;
+
+  app.connectMicroservice<MicroserviceOptions>(
+    {
+      transport: Transport.KAFKA,
+      options: {
+        client: {
+          clientId: `${k.clientId}-microservice`,
+          brokers: k.brokers,
+          ssl: k.ssl,
+          sasl: sasl as never,
+        },
+        consumer: {
+          groupId: k.groupId,
+          allowAutoTopicCreation: true,
+        },
+        subscribe: { fromBeginning: false },
+        run: { autoCommit: true },
+        serializer: new AvroSerializer(sr),
+        deserializer: new AvroDeserializer(sr),
+      },
+    },
+    { inheritAppConfig: true },
+  );
+
+  await app.startAllMicroservices();
   await app.listen(cfg.httpPort);
   app.get(Logger).log(
     `HTTP listening on :${cfg.httpPort} (env=${cfg.nodeEnv})`,

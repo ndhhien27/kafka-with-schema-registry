@@ -35,3 +35,5 @@ Thumbs.db
 
 # Nest
 .nest-cli.json.local
+# Added by code-review-graph
+.code-review-graph/

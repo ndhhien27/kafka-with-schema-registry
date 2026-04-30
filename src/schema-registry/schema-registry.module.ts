@@ -1,5 +1,5 @@
 import { Global, Module } from '@nestjs/common';
-import { SchemaRegistry } from '@kafkajs/confluent-schema-registry';
+import { SchemaRegistryClient } from '@confluentinc/schemaregistry';
 import { AppConfigModule } from '../config/config.module';
 import { AppConfigService } from '../config/app-config.service';
 import {
@@ -16,9 +16,15 @@ import {
       inject: [AppConfigService],
       useFactory: (cfg: AppConfigService) => {
         const { url, user, pass } = cfg.schemaRegistry;
-        return new SchemaRegistry({
-          host: url,
-          auth: user && pass ? { username: user, password: pass } : undefined,
+        return new SchemaRegistryClient({
+          baseURLs: [url],
+          basicAuthCredentials:
+            user && pass
+              ? {
+                  credentialsSource: 'USER_INFO',
+                  userInfo: `${user}:${pass}`,
+                }
+              : undefined,
         });
       },
     },

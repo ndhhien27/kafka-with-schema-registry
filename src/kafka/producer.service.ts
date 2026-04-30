@@ -17,8 +17,6 @@ import { SchemaRegistryService } from '../schema-registry/schema-registry.servic
 
 export interface ProduceOptions<T> {
   topic: string;
-  /** Subject in the Schema Registry. Defaults to `<topic>-value`. */
-  subject?: string;
   key?: string | Buffer | null;
   value: T;
   headers?: Record<string, string | Buffer>;
@@ -65,11 +63,10 @@ export class ProducerService implements OnModuleInit, OnApplicationShutdown {
   }
 
   async produce<T>(opts: ProduceOptions<T>): Promise<RecordMetadata[]> {
-    const subject = opts.subject ?? `${opts.topic}-value`;
     const encoded =
       opts.raw === true
         ? (opts.value as unknown as Buffer | string | null)
-        : await this.sr.encode(subject, opts.value);
+        : await this.sr.encode(opts.topic, opts.value);
 
     const message: Message = {
       key: opts.key ?? null,

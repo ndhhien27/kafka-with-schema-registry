@@ -1,14 +1,16 @@
 # NestJS + Kafka + Schema Registry (Avro)
 
-Production-shaped reference repo: NestJS 10 · kafkajs 2 · Confluent Schema Registry · Avro · pino · OpenTelemetry · Prometheus · Testcontainers.
+Production-shaped reference repo: NestJS 10 microservices · kafkajs 2 · Confluent Schema Registry · Avro · pino · OpenTelemetry · Prometheus · Testcontainers.
 
 ## Features
 
-- kafkajs client wrapped in a Nest `KafkaModule` (global)
-- `@KafkaSubscribe(...)` decorator — methods become consumers discovered at boot
-- Dead-letter topic routing with structured headers on poison pills and handler exhaustion
-- Retry with configurable exponential backoff per handler
-- Graceful shutdown: producer/consumers/admin drain on `SIGTERM`
+- Hybrid Nest app — HTTP gateway + `Transport.KAFKA` microservice in one process
+- `@EventPattern(topic)` consumers (per [NestJS Kafka docs](https://docs.nestjs.com/microservices/kafka)) discovered automatically as Nest controllers
+- `ClientKafka` producer wired through `ClientsModule.registerAsync` with a custom `AvroSerializer`
+- Custom `AvroSerializer` / `AvroDeserializer` integrate Schema Registry with the Nest transport
+- Global `KafkaDlqFilter` routes any uncaught handler error to `<topic>.DLQ` with structured headers, preserving the original SR-framed Buffer (no re-encode)
+- Global `KafkaRetryInterceptor` honors per-handler `@KafkaRetry({ maxAttempts, backoffMs })` policies; exhaustion throws `HandlerExhaustedError` which the DLQ filter routes
+- Graceful shutdown: HTTP + microservice + producer/admin drain on `SIGTERM`
 - Schema Registry auto-registration of every `.avsc` under `schemas/` at startup (TopicNameStrategy)
 - Avro encode/decode with cached schema IDs
 - pino structured logging with redaction
@@ -65,12 +67,13 @@ src/
   config/          # Zod-validated env + AppConfigService
   schema-registry/ # SchemaRegistryService, auto-registration
   kafka/
-    kafka.client.ts          # Kafka() factory (SASL/SSL aware)
-    producer.service.ts      # idempotent producer, graceful shutdown
-    consumer.registry.ts     # discovers @KafkaSubscribe, retry + DLQ
+    kafka.client.ts          # raw kafkajs Kafka() factory used by KafkaAdminService
+    producer.service.ts      # raw kafkajs producer (used by DLQ filter for byte-identical re-publish)
     admin.service.ts         # shared Admin client (used by lag gauge + health)
-    decorators/              # @KafkaSubscribe
-    interfaces/              # DecodedKafkaMessage, KafkaSubscribeOptions
+    serdes/                  # AvroSerializer + AvroDeserializer for the Nest transport
+    filters/                 # KafkaDlqFilter (global @Catch())
+    interceptors/            # KafkaRetryInterceptor (global)
+    decorators/              # @KafkaRetry({ maxAttempts, backoffMs, dlqTopic })
     errors/                  # PoisonPillError, HandlerExhaustedError
   observability/
     tracing.ts               # OTel SDK bootstrap — imported first in main.ts
@@ -93,8 +96,12 @@ test/
 
 1. Drop `<topic-with-dashes>.avsc` in `schemas/`. Filename `foo-bar.avsc` → subject `foo.bar-value`.
 2. Type the payload under `src/features/<your-feature>/`.
-3. Producer: inject `ProducerService` and call `.produce<T>({ topic, key, value })`.
-4. Consumer: add a method decorated with `@KafkaSubscribe({ topic, groupId })` on any provider — it's auto-discovered at boot.
+3. **Producer:** inject `@Inject(KAFKA_CLIENT_PRODUCER) client: ClientKafka` and call `client.emit(topic, { key, value })`. The `AvroSerializer` handles SR encode.
+4. **Consumer:** create a `@Controller()` with a method decorated `@EventPattern('<topic>')`. List it under `controllers: []` of your feature module — Nest discovers it at boot. Optionally add `@KafkaRetry({ maxAttempts: 3, backoffMs: [100, 300, 800] })` for retry policy. On exhaustion the message lands on `<topic>.DLQ` automatically.
+
+## Hybrid mode and consumer groups
+
+Because all `@EventPattern` handlers in a single Nest app share one consumer-group identity (one transport instance), this hybrid setup uses **one Kafka consumer group** for the whole process — `cfg.kafka.groupId`. If you need per-feature groups (e.g. independent scaling of `users-consumer` vs `orders-consumer`), split the app into separate Nest microservice processes with their own `groupId`. The Nest CLI workspace layout (`apps/` + `libs/`) is the natural way to do that.
 
 ## DLQ contract
 

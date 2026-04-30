@@ -1,23 +1,21 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { KafkaSubscribe } from '../../kafka/decorators/kafka-subscribe.decorator';
-import type { DecodedKafkaMessage } from '../../kafka/interfaces/kafka.interfaces';
+import { Controller, Logger } from '@nestjs/common';
+import { Ctx, EventPattern, KafkaContext, Payload } from '@nestjs/microservices';
 import { USER_CREATED_TOPIC, UserCreatedEvent } from './user-events.types';
 
-@Injectable()
+@Controller()
 export class UserCreatedConsumer {
   private readonly logger = new Logger(UserCreatedConsumer.name);
 
-  @KafkaSubscribe({
-    topic: USER_CREATED_TOPIC,
-    groupId: 'users-consumer',
-    fromBeginning: false,
-  })
-  async handle(message: DecodedKafkaMessage<UserCreatedEvent>): Promise<void> {
-    const { value, partition, offset } = message;
+  @EventPattern(USER_CREATED_TOPIC)
+  async handle(
+    @Payload() value: UserCreatedEvent,
+    @Ctx() ctx: KafkaContext,
+  ): Promise<void> {
+    const partition = ctx.getPartition();
+    const offset = ctx.getMessage().offset;
     this.logger.log(
       `UserCreated received id=${value.eventId} user=${value.userId}` +
         ` email=${value.email} partition=${partition} offset=${offset}`,
     );
-    // TODO: downstream side-effect (email, search index, etc.)
   }
 }

@@ -2,12 +2,13 @@ import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import {
-  SchemaRegistry,
-  SchemaType,
-  readAVSCAsync,
-} from '@kafkajs/confluent-schema-registry';
-import { AppConfigService } from '../config/app-config.service';
-
+  AvroDeserializer as PkgAvroDeserializer,
+  AvroSerializer as PkgAvroSerializer,
+  Client as SchemaRegistryClient,
+  SchemaInfo,
+  SerdeType,
+  SubjectNameStrategyType,
+} from '@confluentinc/schemaregistry';
 export const SCHEMA_REGISTRY_CLIENT = Symbol('SCHEMA_REGISTRY_CLIENT');
 
 export interface RegisteredSchema {
@@ -20,17 +21,26 @@ export interface RegisteredSchema {
 export class SchemaRegistryService implements OnModuleInit {
   private readonly logger = new Logger(SchemaRegistryService.name);
   private readonly registered = new Map<string, number>();
+  private serializer!: PkgAvroSerializer;
+  private deserializer!: PkgAvroDeserializer;
 
   constructor(
-    @Inject(SCHEMA_REGISTRY_CLIENT) private readonly client: SchemaRegistry,
-    private readonly appConfig: AppConfigService,
+    @Inject(SCHEMA_REGISTRY_CLIENT) private readonly client: SchemaRegistryClient,
   ) {}
 
   async onModuleInit(): Promise<void> {
+    this.serializer = new PkgAvroSerializer(this.client, SerdeType.VALUE, {
+      useLatestVersion: true,
+      autoRegisterSchemas: false,
+      subjectNameStrategyType: SubjectNameStrategyType.TOPIC,
+    });
+    this.deserializer = new PkgAvroDeserializer(this.client, SerdeType.VALUE, {
+      subjectNameStrategyType: SubjectNameStrategyType.TOPIC,
+    });
     await this.registerAllFromDisk();
   }
 
-  getClient(): SchemaRegistry {
+  getClient(): SchemaRegistryClient {
     return this.client;
   }
 
@@ -38,18 +48,21 @@ export class SchemaRegistryService implements OnModuleInit {
     return this.registered.get(subject);
   }
 
-  async encode(subject: string, payload: unknown): Promise<Buffer> {
-    const id = this.registered.get(subject);
-    if (id === undefined) {
-      const latest = await this.client.getLatestSchemaId(subject);
-      this.registered.set(subject, latest);
-      return this.client.encode(latest, payload);
-    }
-    return this.client.encode(id, payload);
+  /**
+   * Encodes `value` for `topic` using the latest registered schema (TopicNameStrategy).
+   * Returns the SR-framed Buffer (magic byte + schema id + Avro payload).
+   */
+  async encode(topic: string, value: unknown): Promise<Buffer> {
+    return this.serializer.serialize(topic, value);
   }
 
-  async decode<T = unknown>(buffer: Buffer): Promise<T> {
-    return this.client.decode(buffer) as Promise<T>;
+  /**
+   * Decodes an SR-framed Buffer to its original message. The schema id is read
+   * from the framing; `topic` is used by the underlying subject-name strategy
+   * for migration/reader-schema lookups.
+   */
+  async decode<T = unknown>(topic: string, buffer: Buffer): Promise<T> {
+    return (await this.deserializer.deserialize(topic, buffer)) as T;
   }
 
   private async registerAllFromDisk(): Promise<void> {
@@ -57,7 +70,7 @@ export class SchemaRegistryService implements OnModuleInit {
     let files: string[];
     try {
       files = await fs.readdir(dir);
-    } catch (err) {
+    } catch {
       this.logger.warn(`Schemas directory not found at ${dir}; skipping auto-registration.`);
       return;
     }
@@ -67,11 +80,12 @@ export class SchemaRegistryService implements OnModuleInit {
       const path = join(dir, file);
       const subject = this.subjectForFile(file);
       try {
-        const schema = await readAVSCAsync(path);
-        const { id } = await this.client.register(
-          { type: SchemaType.AVRO, schema: JSON.stringify(schema) },
-          { subject },
-        );
+        const raw = await fs.readFile(path, 'utf8');
+        const schemaInfo: SchemaInfo = {
+          schemaType: 'AVRO',
+          schema: raw,
+        };
+        const id = await this.client.register(subject, schemaInfo, false);
         this.registered.set(subject, id);
         this.logger.log(`Registered ${file} -> subject=${subject} id=${id}`);
       } catch (err) {
