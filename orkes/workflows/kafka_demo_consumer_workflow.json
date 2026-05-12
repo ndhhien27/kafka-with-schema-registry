@@ -1,0 +1,29 @@
+{
+  "name": "kafka_demo_consumer_workflow",
+  "version": 1,
+  "description": "Started by the order_placed_handler event handler when an OrderPlaced event arrives. Echoes the inbound payload so the produce->consume loop is observable in the Orkes UI.",
+  "schemaVersion": 2,
+  "ownerEmail": "demo@example.com",
+  "timeoutSeconds": 30,
+  "timeoutPolicy": "ALERT_ONLY",
+  "inputParameters": ["eventId", "orderId", "userId", "amountCents", "currency"],
+  "outputParameters": {
+    "echoed": "${echo.output.result}"
+  },
+  "tasks": [
+    {
+      "name": "echo",
+      "taskReferenceName": "echo",
+      "type": "INLINE",
+      "inputParameters": {
+        "evaluatorType": "javascript",
+        "eventId": "${workflow.input.eventId}",
+        "orderId": "${workflow.input.orderId}",
+        "userId": "${workflow.input.userId}",
+        "amountCents": "${workflow.input.amountCents}",
+        "currency": "${workflow.input.currency}",
+        "expression": "function echo() { return { receivedAt: new Date().getTime(), eventId: $.eventId, orderId: $.orderId, userId: $.userId, amountCents: $.amountCents, currency: $.currency }; } echo();"
+      }
+    }
+  ]
+}

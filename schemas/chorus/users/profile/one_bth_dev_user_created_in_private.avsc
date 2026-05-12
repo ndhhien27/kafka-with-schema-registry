@@ -2,7 +2,7 @@
   "type": "record",
   "name": "UserCreated",
   "namespace": "com.example.events",
-  "doc": "Emitted when a new user is created.",
+  "doc": "Emitted when a new user is created. Topic: one-bth-dev-user-created-in-private.",
   "fields": [
     { "name": "eventId", "type": "string", "doc": "UUID of this event." },
     {

@@ -27,14 +27,6 @@ import { KafkaRetryInterceptor } from './interceptors/kafka-retry.interceptor';
         inject: [AppConfigService, SchemaRegistryService],
         useFactory: (cfg: AppConfigService, sr: SchemaRegistryService) => {
           const k = cfg.kafka;
-          const sasl =
-            k.saslMechanism && k.saslUsername && k.saslPassword
-              ? {
-                  mechanism: k.saslMechanism,
-                  username: k.saslUsername,
-                  password: k.saslPassword,
-                }
-              : undefined;
           return {
             transport: Transport.KAFKA,
             options: {
@@ -42,7 +34,6 @@ import { KafkaRetryInterceptor } from './interceptors/kafka-retry.interceptor';
                 clientId: `${k.clientId}-producer`,
                 brokers: k.brokers,
                 ssl: k.ssl,
-                sasl: sasl as never,
               },
               producer: {
                 idempotent: true,

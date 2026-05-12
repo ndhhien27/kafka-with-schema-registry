@@ -44,3 +44,24 @@ export const extractValidationPaths = (
   const segments = match[1].split('.').filter(Boolean);
   return segments.length > 0 ? [segments] : undefined;
 };
+
+/**
+ * Thrown by AvroSerializer when client-side `Type.isValid` pre-encode
+ * validation rejects a payload. Carries field paths so callers (HTTP
+ * exception filter, DLQ filter) can map to a precise 4xx response.
+ */
+export class SchemaPayloadInvalidError extends Error {
+  readonly name = 'SchemaPayloadInvalidError';
+  constructor(
+    readonly topic: string,
+    readonly paths: string[][],
+    message?: string,
+  ) {
+    super(message ?? defaultMessage(topic, paths));
+  }
+}
+
+function defaultMessage(topic: string, paths: string[][]): string {
+  const flat = paths.map((p) => p.join('.')).join(', ');
+  return `Payload failed Type.isValid for topic=${topic} paths=[${flat}]`;
+}

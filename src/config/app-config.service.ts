@@ -28,9 +28,29 @@ export class AppConfigService {
       clientId: this.config.get('KAFKA_CLIENT_ID', { infer: true }),
       groupId: this.config.get('KAFKA_GROUP_ID', { infer: true }),
       ssl: this.config.get('KAFKA_SSL', { infer: true }),
+      // Dormant — not wired into kafkajs today.
       saslMechanism: this.config.get('KAFKA_SASL_MECHANISM', { infer: true }),
       saslUsername: this.config.get('KAFKA_SASL_USERNAME', { infer: true }),
       saslPassword: this.config.get('KAFKA_SASL_PASSWORD', { infer: true }),
+    };
+  }
+
+  /**
+   * Topic-naming helpers per BTH guideline:
+   *   topic = `${ORG}-${APP}-${ENV}-${FEATURE}-${TYPE}`
+   * Example: `topics.build('user-created', 'in-private')`
+   *   → `one-bth-dev-user-created-in-private`
+   */
+  get topics() {
+    const org = this.config.get('KAFKA_TOPIC_ORG', { infer: true });
+    const app = this.config.get('KAFKA_TOPIC_APP', { infer: true });
+    const env = this.config.get('KAFKA_TOPIC_ENV', { infer: true });
+    return {
+      org,
+      app,
+      env,
+      build: (feature: string, type: string): string =>
+        `${org}-${app}-${env}-${feature}-${type}`,
     };
   }
 
@@ -39,6 +59,7 @@ export class AppConfigService {
       url: this.config.get('SCHEMA_REGISTRY_URL', { infer: true }),
       user: this.config.get('SCHEMA_REGISTRY_USER', { infer: true }),
       pass: this.config.get('SCHEMA_REGISTRY_PASS', { infer: true }),
+      compatibility: this.config.get('SCHEMA_COMPATIBILITY', { infer: true }),
     };
   }
 
@@ -56,5 +77,15 @@ export class AppConfigService {
 
   get consumerLagPollMs(): number {
     return this.config.get('CONSUMER_LAG_POLL_MS', { infer: true });
+  }
+
+  get orkes() {
+    return {
+      enabled: this.config.get('ORKES_ENABLED', { infer: true }),
+      serverUrl: this.config.get('ORKES_SERVER_URL', { infer: true }),
+      key: this.config.get('ORKES_KEY', { infer: true }),
+      secret: this.config.get('ORKES_SECRET', { infer: true }),
+      autoRegister: this.config.get('ORKES_AUTO_REGISTER', { infer: true }),
+    };
   }
 }

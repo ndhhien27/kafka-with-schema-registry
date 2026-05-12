@@ -2,7 +2,7 @@
   "type": "record",
   "name": "OrderPlaced",
   "namespace": "com.example.events",
-  "doc": "Emitted when an order is placed.",
+  "doc": "Emitted when an order is placed. Topic: one-bth-dev-order-placed-in-private.",
   "fields": [
     { "name": "eventId", "type": "string" },
     {

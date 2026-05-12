@@ -21,14 +21,6 @@ async function bootstrap(): Promise<void> {
   const sr = app.get(SchemaRegistryService);
 
   const k = cfg.kafka;
-  const sasl =
-    k.saslMechanism && k.saslUsername && k.saslPassword
-      ? {
-          mechanism: k.saslMechanism,
-          username: k.saslUsername,
-          password: k.saslPassword,
-        }
-      : undefined;
 
   app.connectMicroservice<MicroserviceOptions>(
     {
@@ -38,7 +30,6 @@ async function bootstrap(): Promise<void> {
           clientId: `${k.clientId}-microservice`,
           brokers: k.brokers,
           ssl: k.ssl,
-          sasl: sasl as never,
         },
         consumer: {
           groupId: k.groupId,

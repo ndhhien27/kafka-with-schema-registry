@@ -1,0 +1,46 @@
+{
+  "name": "kafka_demo_workflow",
+  "version": 1,
+  "description": "Demo: build an OrderPlaced payload inline, then publish to Kafka via an Event task. Subject _schema follows the BTH guideline (TopicNameStrategy).",
+  "schemaVersion": 2,
+  "ownerEmail": "demo@example.com",
+  "timeoutSeconds": 60,
+  "timeoutPolicy": "ALERT_ONLY",
+  "inputParameters": ["userId", "amountCents", "currency", "sku"],
+  "outputParameters": {
+    "publishedTo": "${publish_order_placed.input.sink}",
+    "payload": "${build_payload.output.result}"
+  },
+  "tasks": [
+    {
+      "name": "build_payload",
+      "taskReferenceName": "build_payload",
+      "type": "INLINE",
+      "inputParameters": {
+        "evaluatorType": "javascript",
+        "userId": "${workflow.input.userId}",
+        "amountCents": "${workflow.input.amountCents}",
+        "currency": "${workflow.input.currency}",
+        "sku": "${workflow.input.sku}",
+        "expression": "function buildPayload() { return { eventId: $.userId + '-' + $.amountCents + '-' + new Date().getTime(), occurredAt: new Date().getTime(), orderId: 'o-' + new Date().getTime(), userId: $.userId, amountCents: $.amountCents, currency: $.currency, items: [ { sku: $.sku, quantity: 1 } ] }; } buildPayload();"
+      }
+    },
+    {
+      "name": "publish_order_placed",
+      "taskReferenceName": "publish_order_placed",
+      "type": "EVENT",
+      "sink": "kafka:one-bth-dev-order-placed-in-private",
+      "asyncComplete": false,
+      "inputParameters": {
+        "_schema": "one-bth-dev-order-placed-in-private-value",
+        "eventId": "${build_payload.output.result.eventId}",
+        "occurredAt": "${build_payload.output.result.occurredAt}",
+        "orderId": "${build_payload.output.result.orderId}",
+        "userId": "${build_payload.output.result.userId}",
+        "amountCents": "${build_payload.output.result.amountCents}",
+        "currency": "${build_payload.output.result.currency}",
+        "items": "${build_payload.output.result.items}"
+      }
+    }
+  ]
+}

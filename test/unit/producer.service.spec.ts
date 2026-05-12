@@ -4,7 +4,7 @@ import { KAFKA_CLIENT } from '../../src/kafka/kafka.tokens';
 import { SchemaRegistryService } from '../../src/schema-registry/schema-registry.service';
 
 describe('ProducerService', () => {
-  const send = jest.fn().mockResolvedValue([{ topicName: 'user.created' }]);
+  const send = jest.fn().mockResolvedValue([{ topicName: 'one-bth-dev-user-created-in-private' }]);
   const connect = jest.fn().mockResolvedValue(undefined);
   const disconnect = jest.fn().mockResolvedValue(undefined);
   const kafkaMock = { producer: () => ({ send, connect, disconnect }) };
@@ -32,24 +32,24 @@ describe('ProducerService', () => {
 
   it('encodes via Schema Registry by default, passing topic through', async () => {
     await service.produce({
-      topic: 'user.created',
+      topic: 'one-bth-dev-user-created-in-private',
       key: 'u1',
       value: { userId: 'u1', email: 'a@b.c' },
     });
-    expect(encode).toHaveBeenCalledWith('user.created', {
+    expect(encode).toHaveBeenCalledWith('one-bth-dev-user-created-in-private', {
       userId: 'u1',
       email: 'a@b.c',
     });
     expect(send).toHaveBeenCalledTimes(1);
     const [call] = send.mock.calls;
-    expect(call[0].topic).toBe('user.created');
+    expect(call[0].topic).toBe('one-bth-dev-user-created-in-private');
     expect(call[0].messages[0].key).toBe('u1');
     expect(call[0].messages[0].value).toEqual(Buffer.from('encoded'));
   });
 
   it('skips Schema Registry encoding when raw=true', async () => {
     await service.produce({
-      topic: 'user.created.DLQ',
+      topic: 'one-bth-dev-user-created-in-private.DLQ',
       raw: true,
       value: Buffer.from('raw-bytes'),
     });

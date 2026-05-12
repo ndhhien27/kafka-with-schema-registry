@@ -32,15 +32,15 @@ describe('AvroSerializer', () => {
       )
       .mockImplementation(() => undefined);
 
-    const out = await ser.serialize({ userId: 'u-1' }, { pattern: 'user.created' });
+    const out = await ser.serialize({ userId: 'u-1' }, { pattern: 'one-bth-dev-user-created-in-private' });
 
-    expect(sr.encode).toHaveBeenCalledWith('user.created', { userId: 'u-1' });
+    expect(sr.encode).toHaveBeenCalledWith('one-bth-dev-user-created-in-private', { userId: 'u-1' });
     expect(Buffer.isBuffer(out.value)).toBe(true);
     expect(out.key).toBeNull();
     expect(out.headers).toEqual({});
     expect(logSpy).toHaveBeenCalledTimes(1);
     const msg = logSpy.mock.calls[0][0] as string;
-    expect(msg).toContain('topic=user.created');
+    expect(msg).toContain('topic=one-bth-dev-user-created-in-private');
     expect(msg).toContain('schemaId=1');
     expect(msg).toContain('hasKey=false');
     expect(msg).toContain('bytes=');
@@ -59,10 +59,10 @@ describe('AvroSerializer', () => {
 
     const out = await ser.serialize(
       { key: 'u-1', value: { userId: 'u-1' }, headers: { 'x-trace': 't' } },
-      { pattern: 'user.created' },
+      { pattern: 'one-bth-dev-user-created-in-private' },
     );
 
-    expect(sr.encode).toHaveBeenCalledWith('user.created', { userId: 'u-1' });
+    expect(sr.encode).toHaveBeenCalledWith('one-bth-dev-user-created-in-private', { userId: 'u-1' });
     expect(out.key).toBe('u-1');
     expect(out.headers).toEqual({ 'x-trace': 't' });
     expect(logSpy).toHaveBeenCalledTimes(1);
@@ -95,17 +95,17 @@ describe('AvroDeserializer', () => {
       .mockImplementation(() => undefined);
     const msg = { value: SR_FRAMED(1, 'placeholder') } as KafkaMessage;
 
-    const out = await des.deserialize(msg, { channel: 'user.created' });
+    const out = await des.deserialize(msg, { channel: 'one-bth-dev-user-created-in-private' });
 
     expect(sr.decode).toHaveBeenCalledTimes(1);
-    expect(sr.decode).toHaveBeenCalledWith('user.created', expect.any(Buffer));
+    expect(sr.decode).toHaveBeenCalledWith('one-bth-dev-user-created-in-private', expect.any(Buffer));
     expect(out).toEqual({
-      pattern: 'user.created',
+      pattern: 'one-bth-dev-user-created-in-private',
       data: { userId: 'u-1', email: 'a@b' },
     });
     expect(logSpy).toHaveBeenCalledTimes(1);
     const logMsg = logSpy.mock.calls[0][0] as string;
-    expect(logMsg).toContain('topic=user.created');
+    expect(logMsg).toContain('topic=one-bth-dev-user-created-in-private');
     expect(logMsg).toContain('schemaId=1');
     expect(logMsg).toContain('framed=true');
     expect(logMsg).toContain('hasKey=false');
@@ -163,7 +163,7 @@ describe('AvroDeserializer', () => {
     const msg = { value: SR_FRAMED(99, 'x') } as KafkaMessage;
 
     await expect(
-      des.deserialize(msg, { channel: 'user.created' }),
+      des.deserialize(msg, { channel: 'one-bth-dev-user-created-in-private' }),
     ).rejects.toThrow(/bad schema id/);
     expect(logSpy).not.toHaveBeenCalled();
   });

@@ -1,0 +1,22 @@
+{
+  "name": "order_placed_handler",
+  "event": "kafka:one-bth-dev-order-placed-in-private:orkes-demo-handler",
+  "condition": "true",
+  "active": true,
+  "actions": [
+    {
+      "action": "start_workflow",
+      "start_workflow": {
+        "name": "kafka_demo_consumer_workflow",
+        "version": 1,
+        "input": {
+          "eventId": "${eventId}",
+          "orderId": "${orderId}",
+          "userId": "${userId}",
+          "amountCents": "${amountCents}",
+          "currency": "${currency}"
+        }
+      }
+    }
+  ]
+}

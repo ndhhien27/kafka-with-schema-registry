@@ -24,11 +24,11 @@ describe('AvroSerializer error handling', () => {
       .mockImplementation(() => undefined);
 
     await expect(
-      ser.serialize({ email: 123 }, { pattern: 'user.created' }),
+      ser.serialize({ email: 123 }, { pattern: 'one-bth-dev-user-created-in-private' }),
     ).rejects.toMatchObject({ name: 'SerializationError' });
 
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('topic=user.created'),
+      expect.stringContaining('topic=one-bth-dev-user-created-in-private'),
     );
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('paths=[["email"]]'),

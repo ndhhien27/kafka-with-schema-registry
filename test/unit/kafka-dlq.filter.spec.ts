@@ -23,7 +23,7 @@ const buildHost = (overrides: {
   };
   const ctx = {
     getMessage: jest.fn().mockReturnValue(message),
-    getTopic: jest.fn().mockReturnValue(overrides.topic ?? 'order.placed'),
+    getTopic: jest.fn().mockReturnValue(overrides.topic ?? 'one-bth-dev-order-placed-in-private'),
     getPartition: jest.fn().mockReturnValue(overrides.partition ?? 0),
   };
   const handler = overrides.handler ?? function fakeHandler() {};
@@ -47,17 +47,17 @@ describe('KafkaDlqFilter', () => {
   });
 
   it('routes a poison-pill error to <topic>.DLQ with raw original buffer', async () => {
-    const host = buildHost({ topic: 'user.created' });
+    const host = buildHost({ topic: 'one-bth-dev-user-created-in-private' });
     const err = new PoisonPillError('decode failed', new Error('boom'));
 
     await filter.catch(err, host);
 
     expect(producer.produce).toHaveBeenCalledTimes(1);
     const call = producer.produce.mock.calls[0][0];
-    expect(call.topic).toBe('user.created.DLQ');
+    expect(call.topic).toBe('one-bth-dev-user-created-in-private.DLQ');
     expect(call.raw).toBe(true);
     expect(Buffer.isBuffer(call.value)).toBe(true);
-    expect(call.headers['x-original-topic']).toBe('user.created');
+    expect(call.headers['x-original-topic']).toBe('one-bth-dev-user-created-in-private');
     expect(call.headers['x-original-partition']).toBe('0');
     expect(call.headers['x-original-offset']).toBe('42');
     expect(call.headers['x-error-name']).toBe('PoisonPillError');
@@ -67,7 +67,7 @@ describe('KafkaDlqFilter', () => {
   });
 
   it('uses HandlerExhaustedError attempts in x-attempts header', async () => {
-    const host = buildHost({ topic: 'order.placed' });
+    const host = buildHost({ topic: 'one-bth-dev-order-placed-in-private' });
     const err = new HandlerExhaustedError('exhausted', 3, new Error('nope'));
 
     await filter.catch(err, host);
@@ -75,7 +75,7 @@ describe('KafkaDlqFilter', () => {
     const call = producer.produce.mock.calls[0][0];
     expect(call.headers['x-error-name']).toBe('HandlerExhaustedError');
     expect(call.headers['x-attempts']).toBe('3');
-    expect(call.topic).toBe('order.placed.DLQ');
+    expect(call.topic).toBe('one-bth-dev-order-placed-in-private.DLQ');
   });
 
   it('respects @KafkaRetry dlqTopic override on the handler', async () => {
@@ -85,7 +85,7 @@ describe('KafkaDlqFilter', () => {
       { dlqTopic: 'orders.dead', maxAttempts: 5 },
       tagged,
     );
-    const host = buildHost({ topic: 'order.placed', handler: tagged });
+    const host = buildHost({ topic: 'one-bth-dev-order-placed-in-private', handler: tagged });
 
     await filter.catch(new Error('handler boom'), host);
 

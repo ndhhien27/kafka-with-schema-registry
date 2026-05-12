@@ -13,4 +13,4 @@ export interface OrderPlacedEvent {
   items: OrderItem[];
 }
 
-export const ORDER_PLACED_TOPIC = 'order.placed';
+export const ORDER_PLACED_TOPIC = 'one-bth-dev-order-placed-in-private';

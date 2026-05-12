@@ -6,4 +6,4 @@ export interface UserCreatedEvent {
   displayName: string | null;
 }
 
-export const USER_CREATED_TOPIC = 'user.created';
+export const USER_CREATED_TOPIC = 'one-bth-dev-user-created-in-private';
